@@ -1,5 +1,6 @@
 package com.groupon.api.promise;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -17,14 +18,25 @@ import com.groupon.promise.SyncPromiseListFunction;
 public class MainWithClasses {
 
     public static void main(String[] args) {
+        List<Integer> numbers = new ArrayList<>();
         Promise<String> topPromise = new PromiseImpl<>(); // the type is the input there's
         topPromise
                 .then(new Splitter()) // then will evaluate if the input is sync or async by checking the interface of the class
                 .then(new ArrayToList())
                 .thenList(new ListOutFunction())
                 .map()
-                .then(new IsItANumberAsync()); // you can change this to the IsItANumberSync function
-        topPromise.fulfill("a,b,c,d,1,2"); //this is the input
+                .then(new IsItANumberAsync()).optional(true) // you can change this to the IsItANumberSync function
+                .thenSync(numbers::add);
+        topPromise.after().thenSync(
+                success -> {
+                    System.out.println("numbers = " + numbers);
+                    return null;
+                }, error -> {
+                    error.printStackTrace();
+                    System.err.println("error!!!!");
+                    return null;
+                });
+        topPromise.fulfill("a,b,c,d,1,2,3,4,5,6,7,8,9,g,h,i"); //this is the input
     }
 
     /*
@@ -60,14 +72,19 @@ public class MainWithClasses {
         }
     }
 
-    public static class IsItANumberAsync implements AsyncPromiseFunction<String, Boolean> {
+    public static class IsItANumberAsync implements AsyncPromiseFunction<String, Integer> {
 
         @Override
-        public PromiseFuture<Boolean> handle(String value) {
-            PromiseFuture<Boolean> future = new DefaultPromiseFuture<>();
+        public PromiseFuture<Integer> handle(String value) {
+            PromiseFuture<Integer> future = new DefaultPromiseFuture<>();
+
             CompletableFuture.runAsync(() -> { // simulate an async call with completable future
                 boolean number = isNumber(value);
-                future.setResult(number);
+                if (number) {
+                    future.setResult(Integer.parseInt(value));
+                } else {
+                    future.setFailure(new NumberFormatException("invalid number: " + value));
+                }
             });
             return future;
         }
@@ -87,12 +104,6 @@ public class MainWithClasses {
     static final Pattern PATTERN = Pattern.compile("\\d+");
 
     private static boolean isNumber(String value) {
-        boolean number = PATTERN.matcher(value).matches();
-        if (number) {
-            System.out.println("value = " + value + ", is a number");
-        } else {
-            System.out.println("value = " + value + ", is NOT a number");
-        }
-        return number;
+        return PATTERN.matcher(value).matches();
     }
 }
