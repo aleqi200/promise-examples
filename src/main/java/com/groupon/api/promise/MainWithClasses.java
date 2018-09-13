@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 import com.groupon.promise.AsyncPromiseFunction;
@@ -18,25 +19,51 @@ import com.groupon.promise.SyncPromiseListFunction;
 public class MainWithClasses {
 
     public static void main(String[] args) {
-        List<Integer> numbers = new ArrayList<>();
-        Promise<String> topPromise = new PromiseImpl<>(); // the type is the input there's
-        topPromise
-                .then(new Splitter()) // then will evaluate if the input is sync or async by checking the interface of the class
-                .then(new ArrayToList())
-                .thenList(new ListOutFunction())
-                .map()
-                .then(new IsItANumberAsync()).optional(true) // you can change this to the IsItANumberSync function
-                .thenSync(numbers::add);
-        topPromise.after().thenSync(
-                success -> {
-                    System.out.println("numbers = " + numbers);
-                    return null;
-                }, error -> {
-                    error.printStackTrace();
-                    System.err.println("error!!!!");
-                    return null;
-                });
-        topPromise.fulfill("a,b,c,d,1,2,3,4,5,6,7,8,9,g,h,i"); //this is the input
+        while (true) {
+            List<Integer> numbers = new ArrayList<>();
+            List<String> letters = new ArrayList<>();
+            AtomicInteger sum = new AtomicInteger();
+            Promise<String> topPromise = new PromiseImpl<>(); // the type is the input there's
+            Promise<List<String>> plainValues = topPromise
+                    .then(new Splitter()) // then will evaluate if the input is sync or async by checking the interface of the class
+                    .then(new ArrayToList());
+
+            Promise<String> valuesAsString = plainValues
+                    .thenList(new ListOutFunction())
+                    .map();
+
+            valuesAsString
+                    .then(new IsItANumberAsync()).optional(true) // you can change this to the IsItANumberSync function
+                    .thenSync(e -> {
+                        numbers.add(e);
+                        return e;
+                    }).thenSync(v -> {
+                sum.addAndGet(v);
+                return "";
+            });
+
+            valuesAsString.then((SyncPromiseFunction<String, String>) input -> {
+                if (!isNumber(input)) {
+                    letters.add(input);
+                }
+                return input;
+            });
+            topPromise.after().thenSync(
+                    success -> {
+                        System.out.println("numbers = " + numbers);
+                        System.out.println("letters = " + letters);
+                        System.out.println(plainValues.value());
+                        System.out.println("sum = " + sum);
+                        System.exit(0);
+                        return null;
+                    }, error -> {
+                        error.printStackTrace();
+                        System.err.println("error!!!!");
+                        System.exit(1);
+                        return null;
+                    });
+            topPromise.fulfill("a,b,c,d,1,2,3,4,5,6,7,8,9,g,h,i"); //this is the input
+        }
     }
 
     /*
